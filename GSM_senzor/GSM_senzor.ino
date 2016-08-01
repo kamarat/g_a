@@ -16,11 +16,12 @@
  *=====================
  *
  * ARDUINO --- PERIFERIE
- * A   0 -
+ * A  0 -
  *
- * D   2 - 
- * D   3 - vystup signalu z PIR (prerusenie)
- * D   3 - kontrolna LED
+ * D  2 - 
+ * D  3 - vystup signalu z PIR (prerusenie)
+ * D 12 - vstup RF modulu
+ * D 13 - kontrolna LED
  *
  */
 
@@ -31,14 +32,17 @@
 #include <avr/power.h>
 #include <avr/sleep.h>
 
+#include <RH_ASK.h> // kniznica RadioHead pre RF modul s ASK modulaciou
+#include <SPI.h>    // nie je pouzita, ale je potrebna pre kompilaciu s RadioHead
+
 /*== GLOBALNE PREMENNE ==
  *=======================
  * premenne popisujuce zapojene piny
  * premenne popisujuce nastavenie Arduina
  */
 
-// Definicia odladovania a vypisov
-#define DEBUG 1
+#define DEBUG 1   // definicia odladovania a vypisov
+#define RF_ASK 1  // definica pouziteho RF modulu
 
 /*== Deklaracia konstant ==
  */
@@ -47,12 +51,24 @@
 // analogove piny
 
 // digitalne piny
-// pripojenie citaciek na digitalne piny
-const uint8_t PIR = 3;
+const uint8_t PIR = 3;  // vystup PIR pripojeny na port D3
 const uint8_t LED = 13;
 
 /*== Deklaracia premennych ==
  */
+#ifdef RF_ASK
+  /* Constructor.
+   * At present only one instance of RH_ASK per sketch is supported.
+   *   param[in] speed The desired bit rate in bits per second
+   *   param[in] rxPin The pin that is used to get data from the receiver
+   *   param[in] txPin The pin that is used to send data to the transmitter
+   *   param[in] pttPin The pin that is connected to the transmitter controller. It will be set HIGH to enable the transmitter (unless pttInverted is true)
+   *   param[in] pttInverted true if you desire the pttin to be inverted so that LOW wil enable the transmitter
+   * RH_ASK(uint16_t speed = 2000, uint8_t rxPin = 11, uint8_t txPin = 12, uint8_t pttPin = 10, bool pttInverted = false);
+   */    
+  RH_ASK driverASK;
+  const uint8_t RF_VSTUP = 12;  // vstup vysielaca pripojeny na pin D12
+#endif
 
 /*== DEFINICIA FUNKCII ==
  *=======================
@@ -61,18 +77,30 @@ const uint8_t LED = 13;
 void odosliSpravu( void )
 {
   detachInterrupt( digitalPinToInterrupt( PIR ));
-  // Vypis na seriovu konzolu s naslednym cakanim na ukoncenie serioveho prenosu
-  Serial.println( "Posielam spravu" );
-  Serial.print( "Napajacie napatie (mV) = " );
-  Serial.println( merajVcc() );
-  Serial.flush();
-  
-  while( digitalRead( PIR ))
-    digitalWrite( LED, HIGH );
-  
-  Serial.println( "Koncim" );
-  
+  digitalWrite( LED, HIGH );
+
   #if DEBUG == 1
+    // Vypis na seriovu konzolu s naslednym cakanim na ukoncenie serioveho prenosu
+    Serial.println( "Posielam spravu" );
+    Serial.print( "Napajacie napatie (mV) = " );
+    Serial.println( merajVcc() );
+    Serial.flush();
+  #endif
+  
+  /*while( digitalRead( PIR ))
+    digitalWrite( LED, HIGH );
+    */
+  // Odoslanie spravy o poplachu
+  #ifdef RF_ASK
+    const char *SPRAVA = "Poplach";
+    driverASK.send(( uint8_t * )SPRAVA, strlen( SPRAVA ));
+    //driverASK.waitPacketSent();
+    delay(200);
+  #endif
+
+  #if DEBUG == 1
+    Serial.println( "Koncim" );
+    Serial.flush();
   #endif
 }
 
@@ -159,14 +187,16 @@ void setup()
   
   // Inicializacia pinov
   pinMode( PIR, INPUT );
+  pinMode( RF_VSTUP, OUTPUT );
   pinMode( LED, OUTPUT );
   digitalWrite( LED, HIGH );
-
   
-  //attachInterrupt( digitalPinToInterrupt( PIR ), odosliSpravu, RISING );
-
-  Serial.begin( 115200 ); // inicializacia serioveho vystupu
-  Serial.println( "Inicializacia ukoncena." );
+  #if DEBUG == 1
+    Serial.begin( 9600 ); // inicializacia serioveho vystupu
+    if ( !driverASK.init() )
+           Serial.println( "Inicializacia drivera ASK sa nepodarila!" );
+    Serial.println( "Inicializacia ukoncena." );
+  #endif
   delay( 1000 );
 }
 
