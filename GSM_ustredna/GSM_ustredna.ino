@@ -21,6 +21,14 @@
  * D  3 - 
  * D 11 - vystup RF modulu
  * D 13 - kontrolna LED
+ * 
+ * LCD displej
+ * D 21 - RS
+ * D 22 - E
+ * D 23 - D4
+ * D 25 - D5
+ * D 26 - D6
+ * D 27 - D7
  */
 
 /*== KNIZNICE A SUBORY ==
@@ -75,12 +83,13 @@ const uint8_t LED = 13;
 #endif
 
 // Nastavenie premennych LCD modulu
-const uint8_t LCD_RS = 53;
-const uint8_t LCD_E = 51;
-const uint8_t LCD_D4 = 50;
-const uint8_t LCD_D5 = 49;
-const uint8_t LCD_D6 = 47;
-const uint8_t LCD_D7 = 48;
+const uint8_t LCD_RS = 22;
+const uint8_t LCD_E = 23;
+const uint8_t LCD_D4 = 24;
+const uint8_t LCD_D5 = 25;
+const uint8_t LCD_D6 = 26;
+const uint8_t LCD_D7 = 27;
+const uint8_t LCD_A = 28;   // podsvietenie displeja - odber cca 6,1 mA
 LiquidCrystal lcd( LCD_RS, LCD_E, LCD_D4, LCD_D5, LCD_D6, LCD_D7 ); 
 
 /*== DEFINICIA FUNKCII ==
@@ -100,13 +109,18 @@ void prijmiSpravu( void )
   // Prijatie spravy o poplachu
   #ifdef RF_ASK
     uint8_t buf[10] = {0};
-    uint8_t buflen = sizeof(buf);
-    if (driverASK.recv(buf, &buflen)) // Non-blocking
+    uint8_t buflen = sizeof( buf );
+    if ( driverASK.recv( buf, &buflen )) // Non-blocking
     {
       int i;
       // Message with a good checksum received, dump it.
-      Serial.print("Message: ");
-      Serial.println((char*)buf);         
+      Serial.print( "Message: " );
+      Serial.println(( char* ) buf );
+      
+      digitalWrite( LCD_A, HIGH );
+      lcd.setCursor( 0, 2 );
+      lcd.print(( char * ) buf );
+      delay( 5000 );
     }
   #endif
 
@@ -166,10 +180,12 @@ void setup()
   pinMode( RF_VYSTUP, INPUT );
   pinMode( LED, OUTPUT );
   digitalWrite( LED, HIGH );
+  pinMode( LCD_A, OUTPUT );
+  digitalWrite( LCD_A, HIGH );
 
   lcd.begin( 20, 4);  // nastavenie poctu stlpcov a riadkov displeja
   lcd.setCursor( 0, 1);
-  lcd.print( "Ahoj, tu som!" );
+  lcd.print( "Inicializacia !" );
   
   #if DEBUG == 1
     Serial.begin( 9600 ); // inicializacia serioveho vystupu
@@ -177,22 +193,20 @@ void setup()
            Serial.println( "Inicializacia drivera ASK sa nepodarila!" );
     Serial.println( "Inicializacia ukoncena." );
   #endif
-  delay( 1000 );
+  delay( 5000 );
+
+  lcd.clear();      // vymazanie displeja a nastavenie kurzora do laveho horneho rohu
 }
 
 /*== HLAVNY PROGRAM ==
  *====================
  */
 void loop()
-{
-  // Arduino zostane prebudene sekundu, potom zaspi.
-  // LED po zaspati zhasne a zasvieti pri prebudeni.
-  //delay( 1000) ;
-  
+{  
   prijmiSpravu();
 
-  
-  
+  lcd.clear();
+  digitalWrite( LCD_A, LOW );
   #if DEBUG == 1
   #endif
 }
