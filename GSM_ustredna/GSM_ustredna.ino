@@ -5,10 +5,11 @@
  *
  * Hlavny riadiaci program GSM Alarmu urceny pre beh na Arduino Mega
  *
- * @author: mr.nobody
- * @date:   august 2016
- *
- * mr.nobody (cleft) 2016
+ * @author:   kamarat
+ * @date:     august 2016
+ * @version:  0.1beta
+ * 
+ * kamarat (cleft) 2016
  */
 
 /*== ZAPOJENIE PINOV ==
@@ -23,12 +24,19 @@
  * D 13 - kontrolna LED
  * 
  * LCD displej
- * D 21 - RS
- * D 22 - E
- * D 23 - D4
+ * D 22 - RS
+ * D 23 - E
+ * D 24 - D4
  * D 25 - D5
  * D 26 - D6
  * D 27 - D7
+ * D 28 - A
+ * 
+ * GSM modul
+ * D  6 - reset pin GSM
+ * D  9 - softwarovy prepinac zapnutia/vypnutia GSM
+ * D 16 - RX harwdare (pin 1)
+ * D 17 - TX hardware (pin 0)
  */
 
 /*== KNIZNICE A SUBORY ==
@@ -42,6 +50,9 @@
 #include <SPI.h>            // nie je pouzita, ale je potrebna pre kompilaciu s RadioHead
 
 #include <LiquidCrystal.h>  // kniznica pre pracu s LCD displejom
+
+#include "Private.h"        // subor so sukromnymi udajmi
+//#include "GSM_modul.h"      // vlastna kniznica GSM
 
 /*== GLOBALNE PREMENNE ==
  *=======================
@@ -90,7 +101,12 @@ const uint8_t LCD_D5 = 25;
 const uint8_t LCD_D6 = 26;
 const uint8_t LCD_D7 = 27;
 const uint8_t LCD_A = 28;   // podsvietenie displeja - odber cca 6,1 mA
-LiquidCrystal lcd( LCD_RS, LCD_E, LCD_D4, LCD_D5, LCD_D6, LCD_D7 ); 
+LiquidCrystal lcd( LCD_RS, LCD_E, LCD_D4, LCD_D5, LCD_D6, LCD_D7 );
+
+// Nastavenie premennych GSM modulu
+const uint8_t RST_GSM = 6;
+const uint8_t POWER_GSM = 9;
+char odpovedGSM[ 32 ] = {0};
 
 /*== DEFINICIA FUNKCII ==
  *=======================
@@ -116,10 +132,14 @@ void prijmiSpravu( void )
       // Message with a good checksum received, dump it.
       Serial.print( "Message: " );
       Serial.println(( char* ) buf );
-      
       digitalWrite( LCD_A, HIGH );
       lcd.setCursor( 0, 2 );
       lcd.print(( char * ) buf );
+
+      if( strncmp( ( char* ) buf, "Poplach", 7 ) == 0 ) {
+        volajGSM();
+      }
+      
       delay( 5000 );
     }
   #endif
@@ -160,42 +180,123 @@ uint16_t merajVcc( void )
   return napatie;                             // Vcc v mV
 }
 
+void vlozPinGSM( void )
+{
+  Serial2.print( "AT+CPIN=" );
+  Serial2.println( PIN );
+  delay( 100 );
+  readGSM();
+}
+
+void volajGSM( void )
+{
+  //Serial.println( "AT" ); // Wake up GSM
+  //readGSM();
+  Serial2.print( "ATD" );      // sekvencia pre volanie
+  Serial2.print( TEL_CISLO );
+  Serial2.println( ";" );
+  delay( 100 );
+  readGSM();
+  delay( 20000 );
+  Serial2.println( "ATH" );    // ukoncenie volania
+  readGSM();
+}
+
+void zapniGSM( void )
+{
+  digitalWrite( POWER_GSM,LOW );
+  delay( 1000 );
+  digitalWrite( POWER_GSM, HIGH );
+  delay( 2000 ) ;
+  digitalWrite( POWER_GSM, LOW );
+  delay( 3000 );
+}
+void readGSM( void )
+{
+  if ( Serial2.available() ) {
+    
+    digitalWrite( LCD_A, HIGH );
+    
+    while( Serial2.available() > 0 ) {
+      //char znak = Serial2.read();
+      //Serial.print( znak );
+      //lcd.print ( znak );
+      lcd.write( Serial2.read() );
+    }
+    
+    delay( 5000 );
+    lcd.clear(); // vymazanie displeja a nastavenie kurzora do laveho horneho rohu
+  }
+}
+
+
+/*
+char * initGSM()
+{
+  char odpoved[ 100 ] = {0};
+  uint8_t i = 0;
+
+  //Serial3.begin( 19200 ); // inicializacia serioveho vystupu
+  
+  Serial2.print( "AT" );
+
+  while ( Serial2.available() ) {
+    delay( 10 );  
+    if ( Serial2.available() > 0 ) {
+      char c = Serial2.read();
+      odpoved[ i ] = c;
+    }
+  }
+  
+  return odpoved;
+}*/
+
 /*== INICIALIZACIA ==
  *===================
  */
 void setup()
 {
-  /* Casto akekelkovek zariadenie pripojene na vystupne piny moze spotrebuvat male mnozstvo energie aj ked nie je pouzivane.
-   * Vstupne piny, ktore "plavaju" (nepouzivaju pullup alebo pulldown odpor), budu tiez spotrebuvat energiu.
-   * Preto je vhodne vsetky piny okrem TX a RX nastavit na vstupny mod a aktivovat pullup odpory, pokial na piny nie je nic pripojene.
-   */
-  /*DDRD &= B00000011;       // nastavenie pinov 2 - 7 na vstupne, pinom 0 a 1 (RX a TX) ponechane nastavenia
-  DDRB = B00000000;        // nastavenie pinov 8 - 13 na vstupne
-  PORTD |= B11111100;      // aktivacia pullup na pinoch 2 - 7, piny 0 a 1 (RX a TX) ponechane bez
-  PORTB |= B11111111;      // aktivacia pullup na pinoch 8 - 13
-  */
-  
   // Inicializacia pinov
-  //pinMode( PIR, INPUT );
   pinMode( RF_VYSTUP, INPUT );
   pinMode( LED, OUTPUT );
   digitalWrite( LED, HIGH );
   pinMode( LCD_A, OUTPUT );
   digitalWrite( LCD_A, HIGH );
-
+  //pinMode( RST_GSM, OUTPUT );
+  //digitalWrite( RST_GSM, LOW );
+  pinMode( POWER_GSM, OUTPUT );
+  digitalWrite( POWER_GSM, LOW );
+  
+  // Inicializacia displeja
   lcd.begin( 20, 4);  // nastavenie poctu stlpcov a riadkov displeja
   lcd.setCursor( 0, 1);
   lcd.print( "Inicializacia !" );
-  
+  delay( 1000 );
+
+  // Inicializacia GSM modulu
+  zapniGSM();
+  Serial2.begin( 19200 ); // inicializacia serioveho vystupu
+  Serial2.println( "AT" );
+  delay( 100 );
+  readGSM();
+  vlozPinGSM();
+  readGSM();
+
+  // Inicializacia RF modulu
+  if ( !driverASK.init() ) {
+    lcd.clear();
+    lcd.print( "Inicializacia drivera ASK sa nepodarila!" );
+  }
+
   #if DEBUG == 1
-    Serial.begin( 9600 ); // inicializacia serioveho vystupu
+    Serial.begin( 19200 ); // inicializacia serioveho vystupu
     if ( !driverASK.init() )
            Serial.println( "Inicializacia drivera ASK sa nepodarila!" );
     Serial.println( "Inicializacia ukoncena." );
   #endif
-  delay( 5000 );
+  delay( 3000 );
 
-  lcd.clear();      // vymazanie displeja a nastavenie kurzora do laveho horneho rohu
+  lcd.clear(); // vymazanie displeja a nastavenie kurzora do laveho horneho rohu
 }
 
 /*== HLAVNY PROGRAM ==
@@ -205,8 +306,11 @@ void loop()
 {  
   prijmiSpravu();
 
+  
+
   lcd.clear();
   digitalWrite( LCD_A, LOW );
+  delay( 2000 );
   #if DEBUG == 1
   #endif
 }
