@@ -1,3 +1,5 @@
+#include <Arduino.h>
+
 /*== GSM Alarm - senzor ==
  *================================
  *
@@ -18,7 +20,7 @@
  * ARDUINO --- PERIFERIE
  * A  0 -
  *
- * D  2 - 
+ * D  2 -
  * D  3 - vystup signalu z PIR (prerusenie)
  * D 12 - vstup RF modulu
  * D 13 - kontrolna LED
@@ -46,7 +48,7 @@
 
 /*== Deklaracia konstant ==
  */
-//const uint8_t 
+//const uint8_t
 
 // analogove piny
 
@@ -65,7 +67,7 @@ const uint8_t LED = 13;
    *   param[in] pttPin The pin that is connected to the transmitter controller. It will be set HIGH to enable the transmitter (unless pttInverted is true)
    *   param[in] pttInverted true if you desire the pttin to be inverted so that LOW wil enable the transmitter
    * RH_ASK(uint16_t speed = 2000, uint8_t rxPin = 11, uint8_t txPin = 12, uint8_t pttPin = 10, bool pttInverted = false);
-   */    
+   */
   RH_ASK driverASK;
   const uint8_t RF_VSTUP = 12;  // vstup vysielaca pripojeny na pin D12
 #endif
@@ -73,7 +75,9 @@ const uint8_t LED = 13;
 /*== DEFINICIA FUNKCII ==
  *=======================
  */
-  
+
+uint16_t merajVcc( void );
+
 void odosliSpravu( void )
 {
   detachInterrupt( digitalPinToInterrupt( PIR ));
@@ -86,7 +90,7 @@ void odosliSpravu( void )
     Serial.println( merajVcc() );
     Serial.flush();
   #endif
-  
+
   /*while( digitalRead( PIR ))
     digitalWrite( LED, HIGH );
     */
@@ -106,7 +110,7 @@ void odosliSpravu( void )
 
 void zaspiTeraz( void )
 {
-  /* Mod prerusenia definuje, kedy ma byt prerusenie spustene. Su preddefinovane 4 konstanty: 
+  /* Mod prerusenia definuje, kedy ma byt prerusenie spustene. Su preddefinovane 4 konstanty:
    *  LOW to trigger the interrupt whenever the pin is low,
    *  CHANGE to trigger the interrupt whenever the pin changes value
    *  RISING to trigger when the pin goes from low to high,
@@ -114,7 +118,7 @@ void zaspiTeraz( void )
    */
   attachInterrupt( digitalPinToInterrupt( PIR ), odosliSpravu, RISING );  // nastavenie prerusenia
   delay( 100 );
-  
+
   /* Volba spiaceho rezimu
    * Existuje 5 modov pouzitelnych na standardnych 8-bitovych AVR:
    *    SLEEP_MODE_IDLE       – least power savings
@@ -130,14 +134,14 @@ void zaspiTeraz( void )
   sleep_bod_disable();  // vypnutie the Brown Out Detector (BOD) pred uspatim
   //sei();                // povolenie preruseni
   interrupts();         // povolenie preruseni
-  
+
   digitalWrite( LED, LOW );
   #if DEBUG == 1
     Serial.println( "Zaspavam." );
     Serial.flush();
   #endif
-  
-  sleep_cpu();      // uvedenie zariadenia do rezimu spanku 
+
+  sleep_cpu();      // uvedenie zariadenia do rezimu spanku
   sleep_disable();  // po prebudeni program pokracuje v tomto bode
   //sei();
   interrupts();
@@ -147,7 +151,7 @@ uint16_t merajVcc( void )
 {
   /* Nastavenie registrov pre meranie 1,1V proti referencnemu napatiu Vcc
    *   REFS[1:0]     Volba referencneho napatia
-   *      01           AVcc s externym kondenzatorom na AREF pine 
+   *      01           AVcc s externym kondenzatorom na AREF pine
    *   MUX[3:0]      Volba vstupneho kanalu
    *     1110          1,1V (Vbg)
    */
@@ -159,12 +163,12 @@ uint16_t merajVcc( void )
     ADMUX = _BV(MUX3) | _BV(MUX2);
   #else
     ADMUX = _BV( REFS0 ) | _BV( MUX3 ) | _BV( MUX2 ) | _BV( MUX1 ); // nastavenie pre ATmega 328p
-  #endif  
- 
+  #endif
+
   delay( 2 );                                 // pauza pre ustalenie Vref
   ADCSRA |= _BV( ADSC );                      // spustenie konverzie
   while ( bit_is_set( ADCSRA,ADSC ));         // meranie
-  uint8_t lowADC  = ADCL;                     // prvy citany register ADCL - uzamknutie registra ADCH  
+  uint8_t lowADC  = ADCL;                     // prvy citany register ADCL - uzamknutie registra ADCH
   uint8_t highADC = ADCH;                     // po precitani ADCH odomknutie oboch registrov
   uint16_t napatie = ( highADC<<8 ) | lowADC; // vytvorenie 16-bitoveho cisla z dvoch 8-bitovych
   napatie = 1125300L / napatie;               // Vypocet Vcc (v mV); 1125300 = 1.1*1023*1000
@@ -184,13 +188,13 @@ void setup()
   DDRB = B00000000;        // nastavenie pinov 8 - 13 na vstupne
   PORTD |= B11111100;      // aktivacia pullup na pinoch 2 - 7, piny 0 a 1 (RX a TX) ponechane bez
   PORTB |= B11111111;      // aktivacia pullup na pinoch 8 - 13
-  
+
   // Inicializacia pinov
   pinMode( PIR, INPUT );
   pinMode( RF_VSTUP, OUTPUT );
   pinMode( LED, OUTPUT );
   digitalWrite( LED, HIGH );
-  
+
   #if DEBUG == 1
     Serial.begin( 9600 ); // inicializacia serioveho vystupu
     if ( !driverASK.init() )
@@ -209,8 +213,7 @@ void loop()
   // LED po zaspati zhasne a zasvieti pri prebudeni.
   //delay( 1000) ;
   zaspiTeraz();
-  
+
   #if DEBUG == 1
   #endif
 }
-

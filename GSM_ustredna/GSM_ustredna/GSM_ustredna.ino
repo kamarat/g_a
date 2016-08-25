@@ -8,7 +8,7 @@
  * @author:   kamarat
  * @date:     august 2016
  * @version:  0.1beta
- * 
+ *
  * kamarat (cleft) 2016
  */
 
@@ -18,11 +18,11 @@
  * ARDUINO --- PERIFERIE
  * A  0 -
  *
- * D  2 - 
- * D  3 - 
+ * D  2 -
+ * D  3 -
  * D 11 - vystup RF modulu
  * D 13 - kontrolna LED
- * 
+ *
  * LCD displej
  * D 22 - RS
  * D 23 - E
@@ -31,7 +31,7 @@
  * D 26 - D6
  * D 27 - D7
  * D 28 - A
- * 
+ *
  * GSM modul
  * D  6 - reset pin GSM
  * D  9 - softwarovy prepinac zapnutia/vypnutia GSM
@@ -42,6 +42,7 @@
 /*== KNIZNICE A SUBORY ==
  *=======================
  */
+#include <Arduino.h>
 #include <avr/interrupt.h>
 #include <avr/power.h>
 #include <avr/sleep.h>
@@ -66,7 +67,7 @@
 
 /*== Deklaracia konstant ==
  */
-//const uint8_t 
+//const uint8_t
 
 // analogove piny
 
@@ -75,7 +76,7 @@
 const uint8_t LED = 13;
 
 /*== Deklaracia premennych ==
- */ 
+ */
 
 // Nastavenie premennych RF modulu prijimaca
 #ifdef RF_ASK
@@ -87,7 +88,7 @@ const uint8_t LED = 13;
    *   param[in] pttPin The pin that is connected to the transmitter controller. It will be set HIGH to enable the transmitter (unless pttInverted is true)
    *   param[in] pttInverted true if you desire the pttin to be inverted so that LOW wil enable the transmitter
    * RH_ASK(uint16_t speed = 2000, uint8_t rxPin = 11, uint8_t txPin = 12, uint8_t pttPin = 10, bool pttInverted = false);
-   */    
+   */
   RH_ASK driverASK;
   //const uint8_t RF_VSTUP = 12;  // vstup vysielaca pripojeny na pin D12
   const uint8_t RF_VYSTUP = 11;  // vystup prijimaca pripojeny na pin D12 (pin DATA vedla GND)
@@ -111,7 +112,7 @@ char odpovedGSM[ 32 ] = {0};
 /*== DEFINICIA FUNKCII ==
  *=======================
  */
-  
+
 void prijmiSpravu( void )
 {
   digitalWrite( LED, HIGH );
@@ -139,7 +140,7 @@ void prijmiSpravu( void )
       if( strncmp( ( char* ) buf, "Poplach", 7 ) == 0 ) {
         volajGSM();
       }
-      
+
       delay( 5000 );
     }
   #endif
@@ -148,7 +149,7 @@ void prijmiSpravu( void )
     Serial.println( "Koncim" );
     Serial.flush();
   #endif
-*/  
+*/
   digitalWrite( LED, LOW );
 }
 
@@ -156,7 +157,7 @@ uint16_t merajVcc( void )
 {
   /* Nastavenie registrov pre meranie 1,1V proti referencnemu napatiu Vcc
    *   REFS[1:0]     Volba referencneho napatia
-   *      01           AVcc s externym kondenzatorom na AREF pine 
+   *      01           AVcc s externym kondenzatorom na AREF pine
    *   MUX[3:0]      Volba vstupneho kanalu
    *     1110          1,1V (Vbg)
    */
@@ -168,12 +169,12 @@ uint16_t merajVcc( void )
     ADMUX = _BV(MUX3) | _BV(MUX2);
   #else
     ADMUX = _BV( REFS0 ) | _BV( MUX3 ) | _BV( MUX2 ) | _BV( MUX1 ); // nastavenie pre ATmega 328p
-  #endif  
- 
+  #endif
+
   delay( 2 );                                 // pauza pre ustalenie Vref
   ADCSRA |= _BV( ADSC );                      // spustenie konverzie
   while ( bit_is_set( ADCSRA,ADSC ));         // meranie
-  uint8_t lowADC  = ADCL;                     // prvy citany register ADCL - uzamknutie registra ADCH  
+  uint8_t lowADC  = ADCL;                     // prvy citany register ADCL - uzamknutie registra ADCH
   uint8_t highADC = ADCH;                     // po precitani ADCH odomknutie oboch registrov
   uint16_t napatie = ( highADC<<8 ) | lowADC; // vytvorenie 16-bitoveho cisla z dvoch 8-bitovych
   napatie = 1125300L / napatie;               // Vypocet Vcc (v mV); 1125300 = 1.1*1023*1000
@@ -214,16 +215,16 @@ void zapniGSM( void )
 void readGSM( void )
 {
   if ( Serial2.available() ) {
-    
+
     digitalWrite( LCD_A, HIGH );
-    
+
     while( Serial2.available() > 0 ) {
       //char znak = Serial2.read();
       //Serial.print( znak );
       //lcd.print ( znak );
       lcd.write( Serial2.read() );
     }
-    
+
     delay( 5000 );
     lcd.clear(); // vymazanie displeja a nastavenie kurzora do laveho horneho rohu
   }
@@ -237,17 +238,17 @@ char * initGSM()
   uint8_t i = 0;
 
   //Serial3.begin( 19200 ); // inicializacia serioveho vystupu
-  
+
   Serial2.print( "AT" );
 
   while ( Serial2.available() ) {
-    delay( 10 );  
+    delay( 10 );
     if ( Serial2.available() > 0 ) {
       char c = Serial2.read();
       odpoved[ i ] = c;
     }
   }
-  
+
   return odpoved;
 }*/
 
@@ -266,7 +267,7 @@ void setup()
   //digitalWrite( RST_GSM, LOW );
   pinMode( POWER_GSM, OUTPUT );
   digitalWrite( POWER_GSM, LOW );
-  
+
   // Inicializacia displeja
   lcd.begin( 20, 4);  // nastavenie poctu stlpcov a riadkov displeja
   lcd.setCursor( 0, 1);
@@ -303,10 +304,10 @@ void setup()
  *====================
  */
 void loop()
-{  
+{
   prijmiSpravu();
 
-  
+
 
   lcd.clear();
   digitalWrite( LCD_A, LOW );
@@ -314,4 +315,3 @@ void loop()
   #if DEBUG == 1
   #endif
 }
-
