@@ -33,6 +33,7 @@
 #include <avr/interrupt.h>
 #include <avr/power.h>
 #include <avr/sleep.h>
+#include <avr/wdt.h>
 
 #include <RH_ASK.h> // kniznica RadioHead pre RF modul s ASK modulaciou
 #include <SPI.h>    // kniznica nie je pouzita, ale je potrebna pre kompilaciu s RadioHead
@@ -71,11 +72,29 @@ const uint8_t LED = 13;
   const uint8_t RF_VSTUP = 12;  // vstup vysielaca pripojeny na pin D12
 #endif
 
+/* Nastavenie premennych pre watchdog
+ * priznak_WDT - ukladanie stavu, ci prisiel impulzu z watchdog timeru,
+ *            - hodnota 1 simuluje impulz po zapnuti, aby sme necakali
+ * pocitadlo_impulzov_WDT - ukladanie impulzov
+ * IMPULZOV_WDT_PRE_SPUSTENIE - nastavenie pozadovaneho poctu impulzov
+ *                            - v pripade nastavenia 2 je jeden impulz cca 8 s / 8192 ms
+ *
+ * Klucove slovo volatile hovori kompilatoru ako ma zaobchadzat s premennou,
+ * aby ju nacital z pamate RAM a nie z pamatoveho regstra. Vzhladom k spankovemu
+ * rezimu budu tieto hodnoty urcite presne.
+ */
+const uint16_t INTERVAL_MERANIA_VCC = 60000;  // cas udavany v ms
+volatile uint8_t priznak_WDT = 1;
+volatile uint16_t pocitadlo_impulzov_WDT = 0;
+
+const volatile uint8_t IMPULZOV_WDT_PRE_SPUSTENIE = INTERVAL_MERANIA_VCC / 8192;
+
 /*== DEKLARACIA FUNKCII ==
  *=======================
  */
 void zaspiTeraz( void );
 void posliPoplach( void );
+void posliVcc ( void );
 void odosliSpravu( const char* sprava );
 
 /*== INICIALIZACIA ==
@@ -83,7 +102,17 @@ void odosliSpravu( const char* sprava );
  */
 void setup()
 {
-  /* Casto akekelkovek zariadenie pripojene na vystupne piny moze spotrebuvat male mnozstvo energie aj ked nie je pouzivane.
+  // Nastavenie WDT
+  MCUSR &= ~( 1<<WDRF ); // vycistenie priznaku reset WDT
+  /* Pre pripad zmeny WDE alebo delica je potrebne nastavit WDCE,
+   * to umozni update pre 4 hodinove cykly.
+   */
+  WDTCSR |= ( 1<<WDCE ) | ( 1<<WDE );
+  WDTCSR = 1<<WDP0 | 1<<WDP3; // nastavenie hodnoty delica WDT - 8 sekund
+  WDTCSR |= _BV( WDIE );      // povolenie WD prerusenia (ziadny reset)
+
+  /* Doplnkove nastavenie pre usporny rezim.
+   * Casto akekelkovek zariadenie pripojene na vystupne piny moze spotrebuvat male mnozstvo energie aj ked nie je pouzivane.
    * Vstupne piny, ktore "plavaju" (nepouzivaju pullup alebo pulldown odpor), budu tiez spotrebuvat energiu.
    * Preto je vhodne vsetky piny okrem TX a RX nastavit na vstupny mod a aktivovat pullup odpory, pokial na piny nie je nic pripojene.
    */
@@ -130,15 +159,41 @@ void loop()
   // Arduino zostane prebudene sekundu, potom zaspi.
   // LED po zaspati zhasne a zasvieti pri prebudeni.
   //delay( 1000) ;
+
+  if (( priznak_WDT == 1 ) & ( pocitadlo_impulzov_WDT == IMPULZOV_WDT_PRE_SPUSTENIE )) {
+    uint16_t napatie = merajVcc();
+
+    pocitadlo_impulzov_WDT = 0;
+    priznak_WDT = 0;
+
+    #if DEBUG == 1
+      Serial.print( "Napatie Vcc = " );
+      Serial.println( napatie );
+    #endif
+
+
+  }
+
   zaspiTeraz();
 
+  pocitadlo_impulzov_WDT++;
+
   #if DEBUG == 1
+    Serial.print( "Pocitadlo WDT = " );
+    Serial.println( pocitadlo_impulzov_WDT );
   #endif
 }
 
 /*== DEFINICIA FUNKCII ==
  *=======================
  */
+ISR( WDT_vect )
+{
+  if ( priznak_WDT == 0 )
+  {
+    priznak_WDT = 1;
+  }
+}
 
 void zaspiTeraz( void )
 {
@@ -190,14 +245,23 @@ void posliPoplach( void )
   odosliSpravu( SPRAVA );
 }
 
+void posliVcc( void )
+{
+  detachInterrupt( digitalPinToInterrupt( PIR ));
+  digitalWrite( LED, HIGH );
+
+  char sprava[ 5 ] = {0};
+  uint16_t napatie = merajVcc();
+  snprintf( sprava, sizeof( sprava ), "%u", napatie );
+  odosliSpravu( sprava );
+}
+
 void odosliSpravu( const char* sprava )
 {
   #if DEBUG == 1
     // Vypis na seriovu konzolu s naslednym cakanim na ukoncenie serioveho prenosu
     Serial.print( "Posielam spravu = " );
     Serial.println( sprava );
-    Serial.print( "Napajacie napatie (mV) = " );
-    Serial.println( merajVcc() );
     Serial.flush();
   #endif
 
