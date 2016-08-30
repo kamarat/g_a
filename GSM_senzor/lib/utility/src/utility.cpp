@@ -1,7 +1,7 @@
 #include "utility.h"
 #include "Arduino.h"
 
-const float KOREKCIA_VCC = 5180.0 / 4935.0; // napatie zdroja delene nameranym napatim
+const float KOREKCIA_VCC = 5180.0 / 5170.0; // napatie zdroja delene nameranym napatim
 const uint32_t REF_VCC = 1125300 * KOREKCIA_VCC;     // vypocet referencneho napatia v mV - 1125300 = 1.1*1023*1000
 
 uint16_t merajVcc( void )
