@@ -57,6 +57,9 @@ const uint8_t LED = 13;
 
 // analogove piny
 
+// globalne konstanty
+const float KOREKCIA_VCC = 5180.0 / 5000.0; // napatie zdroja delene nameranym napatim
+
 /*== Deklaracia premennych ==
  */
 #ifdef RF_ASK
@@ -267,7 +270,7 @@ void posliVcc( void )
   digitalWrite( LED, HIGH );
 
   char sprava[ 5 ] = {0};
-  uint16_t napatie = merajVcc();
+  uint16_t napatie = merajVcc( KOREKCIA_VCC );
   snprintf( sprava, sizeof( sprava ), "%u", napatie );
   odosliSpravu( sprava );
 }

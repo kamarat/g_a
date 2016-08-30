@@ -1,10 +1,10 @@
 #include "utility.h"
 #include "Arduino.h"
 
-const float KOREKCIA_VCC = 5180.0 / 5170.0; // napatie zdroja delene nameranym napatim
-const uint32_t REF_VCC = 1125300 * KOREKCIA_VCC;     // vypocet referencneho napatia v mV - 1125300 = 1.1*1023*1000
 
-uint16_t merajVcc( void )
+const uint32_t REF_VCC = 1125300;     // vypocet referencneho napatia v mV - 1125300 = 1.1*1023*1000
+
+uint16_t merajVcc( const float KOREKCIA_VCC )
 {
   /* Nastavenie registrov pre meranie 1,1V proti referencnemu napatiu Vcc
    *   REFS[1:0]     Volba referencneho napatia
@@ -28,6 +28,6 @@ uint16_t merajVcc( void )
   uint8_t lowADC  = ADCL;                     // prvy citany register ADCL - uzamknutie registra ADCH
   uint8_t highADC = ADCH;                     // po precitani ADCH odomknutie oboch registrov
   uint16_t napatie = ( highADC<<8 ) | lowADC; // vytvorenie 16-bitoveho cisla z dvoch 8-bitovych
-  napatie = REF_VCC / napatie;               // Vypocet Vcc (v mV)
+  napatie = KOREKCIA_VCC * REF_VCC / napatie; // Vypocet Vcc (v mV)
   return napatie;                             // Vcc v mV
 }

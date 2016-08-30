@@ -3,5 +3,5 @@
 
 #include <stdint.h> // definuje nazvy premennych 'uint'
 
-uint16_t merajVcc( void );
+uint16_t merajVcc( const float KOREKCIA_VCC );
 #endif
