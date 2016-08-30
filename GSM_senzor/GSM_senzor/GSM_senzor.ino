@@ -47,6 +47,7 @@
  */
 #define DEBUG 1   // definicia odladovania a vypisov
 #define RF_ASK    // definica pouziteho RF modulu
+#define WATCHDOG
 
 /*== Deklaracia konstant ==
  */
@@ -83,11 +84,12 @@ const uint8_t LED = 13;
  * aby ju nacital z pamate RAM a nie z pamatoveho regstra. Vzhladom k spankovemu
  * rezimu budu tieto hodnoty urcite presne.
  */
-const uint16_t INTERVAL_MERANIA_VCC = 60000;  // cas udavany v ms
-volatile uint8_t priznak_WDT = 1;
-volatile uint16_t pocitadlo_impulzov_WDT = 0;
-
-const volatile uint8_t IMPULZOV_WDT_PRE_SPUSTENIE = INTERVAL_MERANIA_VCC / 8192;
+#ifdef WATCHDOG
+  const uint16_t INTERVAL_MERANIA_VCC = 60000;  // cas udavany v ms
+  volatile uint8_t priznak_WDT = 1;
+  volatile uint16_t pocitadlo_impulzov_WDT = 0;
+  const volatile uint8_t IMPULZOV_WDT_PRE_SPUSTENIE = INTERVAL_MERANIA_VCC / 8192;
+#endif
 
 /*== DEKLARACIA FUNKCII ==
  *=======================
@@ -102,14 +104,16 @@ void odosliSpravu( const char* sprava );
  */
 void setup()
 {
-  // Nastavenie WDT
-  MCUSR &= ~( 1<<WDRF ); // vycistenie priznaku reset WDT
-  /* Pre pripad zmeny WDE alebo delica je potrebne nastavit WDCE,
-   * to umozni update pre 4 hodinove cykly.
-   */
-  WDTCSR |= ( 1<<WDCE ) | ( 1<<WDE );
-  WDTCSR = 1<<WDP0 | 1<<WDP3; // nastavenie hodnoty delica WDT - 8 sekund
-  WDTCSR |= _BV( WDIE );      // povolenie WD prerusenia (ziadny reset)
+  #ifdef WATCHDOG
+    // Nastavenie WDT
+    MCUSR &= ~( 1<<WDRF ); // vycistenie priznaku reset WDT
+    /* Pre pripad zmeny WDE alebo delica je potrebne nastavit WDCE,
+     * to umozni update pre 4 hodinove cykly.
+     */
+    WDTCSR |= ( 1<<WDCE ) | ( 1<<WDE );
+    WDTCSR = 1<<WDP0 | 1<<WDP3; // nastavenie hodnoty delica WDT - 8 sekund
+    WDTCSR |= _BV( WDIE );      // povolenie WD prerusenia (ziadny reset)
+  #endif
 
   /* Doplnkove nastavenie pre usporny rezim.
    * Casto akekelkovek zariadenie pripojene na vystupne piny moze spotrebuvat male mnozstvo energie aj ked nie je pouzivane.
@@ -120,6 +124,13 @@ void setup()
   DDRB = B00000000;        // nastavenie pinov 8 - 13 na vstupne
   PORTD |= B11111100;      // aktivacia pullup na pinoch 2 - 7, piny 0 a 1 (RX a TX) ponechane bez
   PORTB |= B11111111;      // aktivacia pullup na pinoch 8 - 13
+
+  // Vypnutie ADC prevodnika
+  ADCSRA &= ( uint8_t )~( 1 << ADEN ) ;
+  PRR |= ( uint8_t )( 1 << PRADC );
+
+  // Vypnutie SPI
+  PRR |= ( uint8_t )( 1 << PRSPI );
 
   // Inicializacia pinov
   pinMode( PIR, INPUT );
@@ -160,33 +171,29 @@ void loop()
   // LED po zaspati zhasne a zasvieti pri prebudeni.
   //delay( 1000) ;
 
-  if (( priznak_WDT == 1 ) & ( pocitadlo_impulzov_WDT == IMPULZOV_WDT_PRE_SPUSTENIE )) {
-    uint16_t napatie = merajVcc();
+  #ifdef WATCHDOG
+    if (( priznak_WDT == 1 ) & ( pocitadlo_impulzov_WDT == IMPULZOV_WDT_PRE_SPUSTENIE )) {
 
-    pocitadlo_impulzov_WDT = 0;
-    priznak_WDT = 0;
+      posliVcc();
 
+      pocitadlo_impulzov_WDT = 0;
+      priznak_WDT = 0;
+    }
+
+    pocitadlo_impulzov_WDT++;
     #if DEBUG == 1
-      Serial.print( "Napatie Vcc = " );
-      Serial.println( napatie );
+      Serial.print( "Pocitadlo WDT = " );
+      Serial.println( pocitadlo_impulzov_WDT );
     #endif
-
-
-  }
+  #endif
 
   zaspiTeraz();
-
-  pocitadlo_impulzov_WDT++;
-
-  #if DEBUG == 1
-    Serial.print( "Pocitadlo WDT = " );
-    Serial.println( pocitadlo_impulzov_WDT );
-  #endif
 }
 
 /*== DEFINICIA FUNKCII ==
  *=======================
  */
+#ifdef WATCHDOG
 ISR( WDT_vect )
 {
   if ( priznak_WDT == 0 )
@@ -194,6 +201,7 @@ ISR( WDT_vect )
     priznak_WDT = 1;
   }
 }
+#endif
 
 void zaspiTeraz( void )
 {
@@ -210,6 +218,10 @@ void zaspiTeraz( void )
   */
   attachInterrupt( digitalPinToInterrupt( PIR ), posliPoplach, RISING );  // nastavenie prerusenia
   delay( 100 );
+
+  // Vypnutie ADC prevodnika
+  ADCSRA &= ( uint8_t )~( 1 << ADEN) ;
+  PRR |= ( uint8_t )( 1 << PRADC );
 
   /* Volba spiaceho rezimu
   * Existuje 5 modov pouzitelnych na standardnych 8-bitovych AVR:
@@ -232,8 +244,12 @@ void zaspiTeraz( void )
   sleep_cpu();            // uvedenie zariadenia do rezimu spanku
   sleep_disable();        // po prebudeni program pokracuje v tomto bode
   //sei();
-  //interrupts();
+  interrupts();
   //detachInterrupt( digitalPinToInterrupt( PIR ));
+
+  // Zapnutie ADC prevodnika
+  PRR &= ( uint8_t )~( 1 << PRADC );
+  ADCSRA |= ( uint8_t )( 1 << ADEN );
 }
 
 void posliPoplach( void )
