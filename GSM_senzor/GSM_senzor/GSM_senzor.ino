@@ -136,7 +136,7 @@ void setup()
   PRR |= ( uint8_t )( 1 << PRSPI );
 
   // Inicializacia pinov
-  pinMode( PIR, INPUT );
+  pinMode( PIR, INPUT_PULLUP );
   pinMode( RF_VSTUP, OUTPUT );
   pinMode( LED, OUTPUT );
   digitalWrite( LED, HIGH );
@@ -210,8 +210,9 @@ void zaspiTeraz( void )
 {
   #if DEBUG == 1
     Serial.println( "Zaspavam." );
-    Serial.flush();
+    //Serial.flush();
   #endif
+
 
   /* Mod prerusenia definuje, kedy ma byt prerusenie spustene. Su preddefinovane 4 konstanty:
   *  LOW to trigger the interrupt whenever the pin is low,
@@ -220,7 +221,6 @@ void zaspiTeraz( void )
   *  FALLING for when the pin goes from high to low.
   */
   attachInterrupt( digitalPinToInterrupt( PIR ), posliPoplach, RISING );  // nastavenie prerusenia
-  delay( 100 );
 
   // Vypnutie ADC prevodnika
   ADCSRA &= ( uint8_t )~( 1 << ADEN) ;
@@ -236,19 +236,25 @@ void zaspiTeraz( void )
   */
   set_sleep_mode( SLEEP_MODE_PWR_DOWN );
   //cli();                // zakazanie globalnych preruseni
-  noInterrupts();         // zakazanie globalnych preruseni
+  //noInterrupts();         // zakazanie globalnych preruseni
+
+
+
   sleep_enable();         // nastavenie spiaceho bitu - sleep enable (SE)
   sleep_bod_disable();    // vypnutie the Brown Out Detector (BOD) pred uspatim
-  //sei();                // povolenie preruseni
-  interrupts();           // povolenie preruseni
 
   digitalWrite( LED, LOW );
 
+  //sei();                // povolenie preruseni
+  //interrupts();           // povolenie preruseni
   sleep_cpu();            // uvedenie zariadenia do rezimu spanku
+  //sleep_mode();
   sleep_disable();        // po prebudeni program pokracuje v tomto bode
   //sei();
-  interrupts();
-  //detachInterrupt( digitalPinToInterrupt( PIR ));
+  //interrupts();
+
+  detachInterrupt( digitalPinToInterrupt( PIR ));
+  digitalWrite( LED, HIGH );
 
   // Zapnutie ADC prevodnika
   PRR &= ( uint8_t )~( 1 << PRADC );
@@ -257,6 +263,7 @@ void zaspiTeraz( void )
 
 void posliPoplach( void )
 {
+  //sleep_disable();
   detachInterrupt( digitalPinToInterrupt( PIR ));
   digitalWrite( LED, HIGH );
 
@@ -266,7 +273,8 @@ void posliPoplach( void )
 
 void posliVcc( void )
 {
-  detachInterrupt( digitalPinToInterrupt( PIR ));
+  //sleep_disable();
+  //detachInterrupt( digitalPinToInterrupt( PIR ));
   digitalWrite( LED, HIGH );
 
   char sprava[ 5 ] = {0};
@@ -281,7 +289,7 @@ void odosliSpravu( const char* sprava )
     // Vypis na seriovu konzolu s naslednym cakanim na ukoncenie serioveho prenosu
     Serial.print( "Posielam spravu = " );
     Serial.println( sprava );
-    Serial.flush();
+    //Serial.flush();
   #endif
 
   // Odoslanie spravy o poplachu
@@ -293,6 +301,6 @@ void odosliSpravu( const char* sprava )
 
   #if DEBUG == 1
     Serial.println( "Koncim" );
-    Serial.flush();
+    //Serial.flush();
   #endif
 }
