@@ -46,7 +46,7 @@
  * premenne popisujuce nastavenie Arduina
  */
 #define DEBUG 1   // definicia odladovania a vypisov
-#define RF_ASK    // definica pouziteho RF modulu
+#define RF_ASK    // definicia pouziteho RF modulu
 #define WATCHDOG
 
 /*== Deklaracia konstant ==
@@ -94,10 +94,13 @@ const float KOREKCIA_VCC = 5180.0 / 5000.0; // napatie zdroja delene nameranym n
   const volatile uint8_t IMPULZOV_WDT_PRE_SPUSTENIE = INTERVAL_MERANIA_VCC / 8192;
 #endif
 
+volatile uint8_t priznak_IRQ = 1;              // ukladanie stavu, ci nastalo prerusenie
+
 /*== DEKLARACIA FUNKCII ==
  *=======================
  */
 void zaspiTeraz( void );
+void nastaloPrerusenie( void );
 void posliPoplach( void );
 void posliVcc ( void );
 void odosliSpravu( const char* sprava );
@@ -170,26 +173,31 @@ void setup()
  */
 void loop()
 {
-  // Arduino zostane prebudene sekundu, potom zaspi.
-  // LED po zaspati zhasne a zasvieti pri prebudeni.
-  //delay( 1000) ;
+  if ( priznak_IRQ == 1 ) {
+    priznak_IRQ = 0;
+    posliPoplach();
+  }
 
   #ifdef WATCHDOG
-    if (( priznak_WDT == 1 ) & ( pocitadlo_impulzov_WDT == IMPULZOV_WDT_PRE_SPUSTENIE )) {
-
-      posliVcc();
-
-      pocitadlo_impulzov_WDT = 0;
+    if ( priznak_WDT == 1 ) {
       priznak_WDT = 0;
-    }
+      pocitadlo_impulzov_WDT++;
+      #if DEBUG == 1
+        Serial.print( "Pocitadlo WDT = " );
+        Serial.println( pocitadlo_impulzov_WDT );
+      #endif
 
-    pocitadlo_impulzov_WDT++;
-    #if DEBUG == 1
-      Serial.print( "Pocitadlo WDT = " );
-      Serial.println( pocitadlo_impulzov_WDT );
-    #endif
+      if ( pocitadlo_impulzov_WDT >= IMPULZOV_WDT_PRE_SPUSTENIE ) {
+        posliVcc();
+        pocitadlo_impulzov_WDT = 0;
+      }
+    }
   #endif
 
+  #if DEBUG == 1
+    Serial.println( "Zaspavam." );
+    Serial.flush();
+  #endif
   zaspiTeraz();
 }
 
@@ -206,13 +214,25 @@ ISR( WDT_vect )
 }
 #endif
 
+void nastaloPrerusenie( void )
+{
+  if ( priznak_IRQ == 0 )
+  {
+    priznak_IRQ = 1;
+  }
+}
+
 void zaspiTeraz( void )
 {
-  #if DEBUG == 1
-    Serial.println( "Zaspavam." );
-    //Serial.flush();
-  #endif
+  // Vypnutie ADC prevodnika
+  ADCSRA &= ( uint8_t )~( 1 << ADEN) ;
+  PRR |= ( uint8_t )( 1 << PRADC );
 
+  //cli();                // zakazanie globalnych preruseni
+  noInterrupts();         // zakazanie globalnych preruseni
+  EIFR = 1 << INTF0;      // vycistenie priznaku pre prerusenie 0
+
+  digitalWrite( LED, LOW );
 
   /* Mod prerusenia definuje, kedy ma byt prerusenie spustene. Su preddefinovane 4 konstanty:
   *  LOW to trigger the interrupt whenever the pin is low,
@@ -220,11 +240,7 @@ void zaspiTeraz( void )
   *  RISING to trigger when the pin goes from low to high,
   *  FALLING for when the pin goes from high to low.
   */
-  attachInterrupt( digitalPinToInterrupt( PIR ), posliPoplach, RISING );  // nastavenie prerusenia
-
-  // Vypnutie ADC prevodnika
-  ADCSRA &= ( uint8_t )~( 1 << ADEN) ;
-  PRR |= ( uint8_t )( 1 << PRADC );
+  attachInterrupt( digitalPinToInterrupt( PIR ), nastaloPrerusenie, RISING );  // nastavenie prerusenia
 
   /* Volba spiaceho rezimu
   * Existuje 5 modov pouzitelnych na standardnych 8-bitovych AVR:
@@ -235,23 +251,14 @@ void zaspiTeraz( void )
   *    SLEEP_MODE_PWR_DOWN   – most power savings
   */
   set_sleep_mode( SLEEP_MODE_PWR_DOWN );
-  //cli();                // zakazanie globalnych preruseni
-  //noInterrupts();         // zakazanie globalnych preruseni
-
-
-
   sleep_enable();         // nastavenie spiaceho bitu - sleep enable (SE)
   sleep_bod_disable();    // vypnutie the Brown Out Detector (BOD) pred uspatim
 
-  digitalWrite( LED, LOW );
-
-  //sei();                // povolenie preruseni
-  //interrupts();           // povolenie preruseni
-  sleep_cpu();            // uvedenie zariadenia do rezimu spanku
-  //sleep_mode();
-  sleep_disable();        // po prebudeni program pokracuje v tomto bode
   //sei();
-  //interrupts();
+  interrupts();
+
+  sleep_cpu();            // uvedenie zariadenia do rezimu spanku
+  sleep_disable();        // po prebudeni program pokracuje v tomto bode
 
   detachInterrupt( digitalPinToInterrupt( PIR ));
   digitalWrite( LED, HIGH );
@@ -264,8 +271,8 @@ void zaspiTeraz( void )
 void posliPoplach( void )
 {
   //sleep_disable();
-  detachInterrupt( digitalPinToInterrupt( PIR ));
-  digitalWrite( LED, HIGH );
+  //detachInterrupt( digitalPinToInterrupt( PIR ));
+  //digitalWrite( LED, HIGH );
 
   const char * SPRAVA = "Poplach";
   odosliSpravu( SPRAVA );
@@ -275,7 +282,7 @@ void posliVcc( void )
 {
   //sleep_disable();
   //detachInterrupt( digitalPinToInterrupt( PIR ));
-  digitalWrite( LED, HIGH );
+  //digitalWrite( LED, HIGH );
 
   char sprava[ 5 ] = {0};
   uint16_t napatie = merajVcc( KOREKCIA_VCC );
