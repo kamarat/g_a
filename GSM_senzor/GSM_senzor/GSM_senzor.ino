@@ -45,7 +45,7 @@
  * premenne popisujuce zapojene piny
  * premenne popisujuce nastavenie Arduina
  */
-#define DEBUG 1   // definicia odladovania a vypisov
+#define DEBUG 0   // definicia odladovania a vypisov
 #define RF_ASK    // definicia pouziteho RF modulu
 #define WATCHDOG
 
@@ -137,6 +137,9 @@ void setup()
 
   // Vypnutie SPI
   PRR |= ( uint8_t )( 1 << PRSPI );
+
+  // Vypnutie TWI
+  PRR |= ( uint8_t )( 1 << PRTWI );
 
   // Inicializacia pinov
   pinMode( PIR, INPUT_PULLUP );
