@@ -53,7 +53,7 @@
  */
 // digitalne piny
 const uint8_t PIR = 3;  // vystup PIR pripojeny na port D3
-const uint8_t LED = 13;
+const uint8_t LED = 13; // LED umiestnena na PCB
 
 // analogove piny
 
@@ -168,7 +168,7 @@ void setup()
     Serial.println( "Inicializacia ukoncena." );
   #endif
 
-  delay( 1000 );
+  delay( 15000 );
 }
 
 /*== HLAVNY PROGRAM ==
@@ -178,7 +178,9 @@ void loop()
 {
   if ( priznak_IRQ == 1 ) {
     priznak_IRQ = 0;
-    posliPoplach();
+    if ( pocitadlo_impulzov_WDT) {
+      posliPoplach();
+    }
   }
 
   #ifdef WATCHDOG
@@ -202,6 +204,10 @@ void loop()
     Serial.flush();
   #endif
   zaspiTeraz();
+  #if DEBUG == 1
+    Serial.println( "Zobudil som sa." );
+    Serial.flush();
+  #endif
 }
 
 /*== DEFINICIA FUNKCII ==
@@ -233,7 +239,7 @@ void zaspiTeraz( void )
 
   //cli();                // zakazanie globalnych preruseni
   noInterrupts();         // zakazanie globalnych preruseni
-  EIFR = 1 << INTF0;      // vycistenie priznaku pre prerusenie 0
+  //EIFR = 1 << INTF0;      // vycistenie priznaku pre prerusenie 0
 
   digitalWrite( LED, LOW );
 
@@ -254,8 +260,8 @@ void zaspiTeraz( void )
   *    SLEEP_MODE_PWR_DOWN   – most power savings
   */
   set_sleep_mode( SLEEP_MODE_PWR_DOWN );
-  sleep_enable();         // nastavenie spiaceho bitu - sleep enable (SE)
   sleep_bod_disable();    // vypnutie the Brown Out Detector (BOD) pred uspatim
+  sleep_enable();         // nastavenie spiaceho bitu - sleep enable (SE)
 
   //sei();
   interrupts();
@@ -305,8 +311,8 @@ void odosliSpravu( const char* sprava )
   // Odoslanie spravy o poplachu
   #ifdef RF_ASK
     driverASK.send(( uint8_t* ) sprava, strlen( sprava ));
-    //driverASK.waitPacketSent();
-    delay(200);
+    driverASK.waitPacketSent();
+    //delay(200);
   #endif
 
   #if DEBUG == 1
