@@ -58,7 +58,13 @@ const uint8_t LED = 13; // LED umiestnena na PCB
 // analogove piny
 
 // globalne konstanty
-const float KOREKCIA_VCC = 5180.0 / 5000.0; // napatie zdroja delene nameranym napatim
+// Korekcia by mala byt napatie zdroja delene nameranym napatim,
+// ale kedze to nefunguje, bola vypocitana pokusne
+#if F_CPU == 16000000
+  const float KOREKCIA_VCC = 5180.0 / 5000.0;
+#elif F_CPU == 8000000
+  const float KOREKCIA_VCC = 3600.0 / 3600.0;
+#endif
 
 /*== Deklaracia premennych ==
  */
@@ -178,7 +184,8 @@ void loop()
 {
   if ( priznak_IRQ == 1 ) {
     priznak_IRQ = 0;
-    if ( pocitadlo_impulzov_WDT) {
+    // Podmienka doplnena kvoli odstraneniu falosnych poplachov po odoslani Vcc
+    if ( pocitadlo_impulzov_WDT ) {
       posliPoplach();
     }
   }
