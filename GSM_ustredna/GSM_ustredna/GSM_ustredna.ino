@@ -67,13 +67,12 @@
 
 /*== Deklaracia konstant ==
  */
-//const uint8_t
-
 // analogove piny
 
 // digitalne piny
 //const uint8_t PIR = 3;  // vystup PIR pripojeny na port D3
 const uint8_t LED = 13;
+const uint8_t TLACIDLO = 21;  // tlacidlo vymazania poplachu
 
 /*== Deklaracia premennych ==
  */
@@ -109,6 +108,12 @@ const uint8_t RST_GSM = 6;
 const uint8_t POWER_GSM = 9;
 char odpovedGSM[ 32 ] = {0};
 
+/*== DEKLARACIA FUNKCII ==
+ *=======================
+ */
+
+void vymazPoplach( void );
+
 /*== DEFINICIA FUNKCII ==
  *=======================
  */
@@ -133,15 +138,17 @@ void prijmiSpravu( void )
       // Message with a good checksum received, dump it.
       Serial.print( "Message: " );
       Serial.println(( char* ) buf );
-      digitalWrite( LCD_A, HIGH );
-      lcd.setCursor( 0, 2 );
-      lcd.print(( char * ) buf );
+      //digitalWrite( LCD_A, HIGH );
 
       if( strncmp( ( char* ) buf, "Poplach", 7 ) == 0 ) {
+        lcd.setCursor( 0, 1 );
+        lcd.print(( char * ) buf );
         volajGSM();
       }
-
-      delay( 5000 );
+      else {
+        lcd.setCursor( 4, 3 );
+        lcd.print(( char * ) buf );
+      }
     }
   #endif
 
@@ -151,34 +158,6 @@ void prijmiSpravu( void )
   #endif
 */
   digitalWrite( LED, LOW );
-}
-
-uint16_t merajVcc( void )
-{
-  /* Nastavenie registrov pre meranie 1,1V proti referencnemu napatiu Vcc
-   *   REFS[1:0]     Volba referencneho napatia
-   *      01           AVcc s externym kondenzatorom na AREF pine
-   *   MUX[3:0]      Volba vstupneho kanalu
-   *     1110          1,1V (Vbg)
-   */
-  #if defined(__AVR_ATmega32U4__) || defined(__AVR_ATmega1280__) || defined(__AVR_ATmega2560__)
-    ADMUX = _BV(REFS0) | _BV(MUX4) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1);
-  #elif defined (__AVR_ATtiny24__) || defined(__AVR_ATtiny44__) || defined(__AVR_ATtiny84__)
-    ADMUX = _BV(MUX5) | _BV(MUX0);
-  #elif defined (__AVR_ATtiny25__) || defined(__AVR_ATtiny45__) || defined(__AVR_ATtiny85__)
-    ADMUX = _BV(MUX3) | _BV(MUX2);
-  #else
-    ADMUX = _BV( REFS0 ) | _BV( MUX3 ) | _BV( MUX2 ) | _BV( MUX1 ); // nastavenie pre ATmega 328p
-  #endif
-
-  delay( 2 );                                 // pauza pre ustalenie Vref
-  ADCSRA |= _BV( ADSC );                      // spustenie konverzie
-  while ( bit_is_set( ADCSRA,ADSC ));         // meranie
-  uint8_t lowADC  = ADCL;                     // prvy citany register ADCL - uzamknutie registra ADCH
-  uint8_t highADC = ADCH;                     // po precitani ADCH odomknutie oboch registrov
-  uint16_t napatie = ( highADC<<8 ) | lowADC; // vytvorenie 16-bitoveho cisla z dvoch 8-bitovych
-  napatie = 1125300L / napatie;               // Vypocet Vcc (v mV); 1125300 = 1.1*1023*1000
-  return napatie;                             // Vcc v mV
 }
 
 void vlozPinGSM( void )
@@ -258,8 +237,10 @@ char * initGSM()
 void setup()
 {
   // Inicializacia pinov
+  pinMode( TLACIDLO, INPUT_PULLUP);
   pinMode( RF_VYSTUP, INPUT );
   pinMode( LED, OUTPUT );
+
   digitalWrite( LED, HIGH );
   pinMode( LCD_A, OUTPUT );
   digitalWrite( LCD_A, HIGH );
@@ -298,6 +279,12 @@ void setup()
   delay( 3000 );
 
   lcd.clear(); // vymazanie displeja a nastavenie kurzora do laveho horneho rohu
+  lcd.setCursor( 0, 3 );
+  lcd.print( "Vcc=" );
+  lcd.setCursor( 8, 3 );
+  lcd.print( "mV" );
+
+  attachInterrupt( digitalPinToInterrupt( 21 ), vymazPoplach, FALLING );
 }
 
 /*== HLAVNY PROGRAM ==
@@ -307,11 +294,18 @@ void loop()
 {
   prijmiSpravu();
 
-
-
-  lcd.clear();
-  digitalWrite( LCD_A, LOW );
+  //lcd.clear();
+  //digitalWrite( LCD_A, LOW );
   delay( 2000 );
   #if DEBUG == 1
   #endif
 }
+
+/*== DEFINICIA FUNKCII ==
+ *=======================
+ */
+ void vymazPoplach ( void )
+ {
+   lcd.setCursor( 0, 1 );
+   lcd.print( "                    " );
+ }
