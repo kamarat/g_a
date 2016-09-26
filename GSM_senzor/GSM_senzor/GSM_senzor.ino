@@ -95,12 +95,18 @@ const uint8_t LED = 13; // LED umiestnena na PCB
  */
 #ifdef WATCHDOG
   const uint16_t INTERVAL_MERANIA_VCC = 60000;  // cas udavany v ms
-  volatile uint8_t priznak_WDT = 1;
-  volatile uint16_t pocitadlo_impulzov_WDT = 0;
-  const volatile uint8_t IMPULZOV_WDT_PRE_SPUSTENIE = INTERVAL_MERANIA_VCC / 8192;
+  volatile uint8_t priznakWDT = 1;
+  volatile uint16_t pocitadloImpulzovWDT = 0;
+  const uint8_t IMPULZOV_WDT_PRE_SPUSTENIE = INTERVAL_MERANIA_VCC / 8192;
 #endif
 
-volatile uint8_t priznak_IRQ = 1;              // ukladanie stavu, ci nastalo prerusenie
+volatile uint8_t priznakIRQ = 0;             // ukladanie stavu, ci nastalo prerusenie
+
+//volatile uint8_t priznakPoplachu = 0;               // ukladanie stavu aktivity PIR
+//volatile uint8_t pocitadloImpulzovPoplachu = 0;     // pocet impulzov PIR v stanovenom case
+volatile uint32_t casPoplachu = 0;                 // premenna pre porovnanie casu
+const uint8_t INTERVAL_POPLACHU = 8000;             // max interval pre testovanie a vyhlasenie poplachu
+const uint8_t IMPULZOV_PRE_VYHLASENIE_POPLACHU = 2; // min pocet impulzov pre vyhlasenie poplachu
 
 /*== DEKLARACIA FUNKCII ==
  *=======================
@@ -182,26 +188,23 @@ void setup()
  */
 void loop()
 {
-  if ( priznak_IRQ == 1 ) {
-    priznak_IRQ = 0;
-    // Podmienka doplnena kvoli odstraneniu falosnych poplachov po odoslani Vcc
-    if ( pocitadlo_impulzov_WDT ) {
-      posliPoplach();
-    }
+  if ( priznakIRQ >= IMPULZOV_PRE_VYHLASENIE_POPLACHU ) {
+    priznakIRQ = 0;
+    posliPoplach();
   }
 
   #ifdef WATCHDOG
-    if ( priznak_WDT == 1 ) {
-      priznak_WDT = 0;
-      pocitadlo_impulzov_WDT++;
+    if ( priznakWDT == 1 ) {
+      priznakWDT = 0;
+      pocitadloImpulzovWDT++;
       #if DEBUG == 1
         Serial.print( "Pocitadlo WDT = " );
-        Serial.println( pocitadlo_impulzov_WDT );
+        Serial.println( pocitadloImpulzovWDT );
       #endif
 
-      if ( pocitadlo_impulzov_WDT >= IMPULZOV_WDT_PRE_SPUSTENIE ) {
+      if ( pocitadloImpulzovWDT >= IMPULZOV_WDT_PRE_SPUSTENIE ) {
         posliVcc();
-        pocitadlo_impulzov_WDT = 0;
+        pocitadloImpulzovWDT = 0;
       }
     }
   #endif
@@ -223,18 +226,24 @@ void loop()
 #ifdef WATCHDOG
 ISR( WDT_vect )
 {
-  if ( priznak_WDT == 0 )
-  {
-    priznak_WDT = 1;
+  if ( priznakWDT == 0 ) {
+    priznakWDT = 1;
   }
 }
 #endif
 
 void nastaloPrerusenie( void )
 {
-  if ( priznak_IRQ == 0 )
-  {
-    priznak_IRQ = 1;
+  if ( priznakIRQ == 0 ) {
+    casPoplachu = millis() + INTERVAL_POPLACHU;
+    priznakIRQ++;
+  }
+  else if ( casPoplachu >= millis() ) {
+    priznakIRQ++;
+  }
+  else {
+    casPoplachu = millis() + INTERVAL_POPLACHU;
+    priznakIRQ = 1;
   }
 }
 
