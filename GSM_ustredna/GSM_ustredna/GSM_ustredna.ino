@@ -120,7 +120,7 @@ void vymazPoplach( void );
 
 void prijmiSpravu( void )
 {
-  digitalWrite( LED, HIGH );
+  //digitalWrite( LED, HIGH );
 
 /*  #if DEBUG == 1
     // Vypis na seriovu konzolu s naslednym cakanim na ukoncenie serioveho prenosu
@@ -195,17 +195,18 @@ void readGSM( void )
 {
   if ( Serial2.available() ) {
 
-    digitalWrite( LCD_A, HIGH );
+    //digitalWrite( LCD_A, HIGH );
 
     while( Serial2.available() > 0 ) {
       //char znak = Serial2.read();
       //Serial.print( znak );
       //lcd.print ( znak );
+      lcd.setCursor( 0, 0 );
       lcd.write( Serial2.read() );
     }
 
-    delay( 5000 );
-    lcd.clear(); // vymazanie displeja a nastavenie kurzora do laveho horneho rohu
+    delay( 1000 );
+    //lcd.clear(); // vymazanie displeja a nastavenie kurzora do laveho horneho rohu
   }
 }
 
@@ -240,7 +241,6 @@ void setup()
   pinMode( TLACIDLO, INPUT_PULLUP);
   pinMode( RF_VYSTUP, INPUT );
   pinMode( LED, OUTPUT );
-
   digitalWrite( LED, HIGH );
   pinMode( LCD_A, OUTPUT );
   digitalWrite( LCD_A, HIGH );
