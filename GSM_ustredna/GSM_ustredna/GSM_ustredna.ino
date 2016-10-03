@@ -53,6 +53,7 @@
 #include <LiquidCrystal.h>  // kniznica pre pracu s LCD displejom
 
 #include "Private.h"        // subor so sukromnymi udajmi
+#include "Lcd_GA.h"         // kniznica rozsirujuca zakladnu kniznicu Lcd
 //#include "GSM_modul.h"      // vlastna kniznica GSM
 
 /*== GLOBALNE PREMENNE ==
@@ -94,6 +95,8 @@ const uint8_t TLACIDLO = 21;  // tlacidlo vymazania poplachu
 #endif
 
 // Nastavenie premennych LCD modulu
+const uint8_t riadkovLcd = 4;
+const uint8_t stlpcovLcd = 20;
 const uint8_t LCD_RS = 22;
 const uint8_t LCD_E = 23;
 const uint8_t LCD_D4 = 24;
@@ -102,6 +105,7 @@ const uint8_t LCD_D6 = 26;
 const uint8_t LCD_D7 = 27;
 const uint8_t LCD_A = 28;   // podsvietenie displeja - odber cca 6,1 mA
 LiquidCrystal lcd( LCD_RS, LCD_E, LCD_D4, LCD_D5, LCD_D6, LCD_D7 );
+LcdGA lcdGA( &lcd, riadkovLcd, stlpcovLcd );
 
 // Nastavenie premennych GSM modulu
 const uint8_t RST_GSM = 6;
@@ -134,7 +138,7 @@ void prijmiSpravu( void )
     uint8_t buflen = sizeof( buf );
     if ( driverASK.recv( buf, &buflen )) // Non-blocking
     {
-      int i;
+      //int i;
       // Message with a good checksum received, dump it.
       Serial.print( "Message: " );
       Serial.println(( char* ) buf );
@@ -250,7 +254,7 @@ void setup()
   digitalWrite( POWER_GSM, LOW );
 
   // Inicializacia displeja
-  lcd.begin( 20, 4);  // nastavenie poctu stlpcov a riadkov displeja
+  lcd.begin( stlpcovLcd, riadkovLcd );  // nastavenie poctu stlpcov a riadkov displeja
   lcd.setCursor( 0, 1);
   lcd.print( "Inicializacia !" );
   delay( 1000 );
@@ -306,6 +310,7 @@ void loop()
  */
  void vymazPoplach ( void )
  {
-   lcd.setCursor( 0, 1 );
-   lcd.print( "                    " );
+   //lcd.setCursor( 0, 1 );
+   //lcd.print( "                    " );
+   lcdGA.vymazRiadok( 1 );
  }
