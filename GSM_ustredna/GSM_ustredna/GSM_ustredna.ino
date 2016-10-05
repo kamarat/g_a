@@ -54,7 +54,7 @@
 
 #include "Private.h"        // subor so sukromnymi udajmi
 #include "Lcd_GA.h"         // kniznica rozsirujuca zakladnu kniznicu Lcd
-//#include "GSM_modul.h"      // vlastna kniznica GSM
+#include "GSM_GA.h"      // vlastna kniznica GSM
 
 /*== GLOBALNE PREMENNE ==
  *=======================
@@ -108,8 +108,11 @@ LiquidCrystal lcd( LCD_RS, LCD_E, LCD_D4, LCD_D5, LCD_D6, LCD_D7 );
 LcdGA lcdGA( &lcd, riadkovLcd, stlpcovLcd );
 
 // Nastavenie premennych GSM modulu
+const uint8_t GSM_RX = 14;
+const uint8_t GSM_TX = 15;
 const uint8_t RST_GSM = 6;
 const uint8_t POWER_GSM = 9;
+GSMGA gsmGA( &Serial2, &POWER_GSM );
 char odpovedGSM[ 32 ] = {0};
 
 /*== DEKLARACIA FUNKCII ==
@@ -186,15 +189,15 @@ void volajGSM( void )
   readGSM();
 }
 
-void zapniGSM( void )
+/*void zapniGSM( void )
 {
-  digitalWrite( POWER_GSM,LOW );
+  digitalWrite( POWER_GSM, LOW );
   delay( 1000 );
   digitalWrite( POWER_GSM, HIGH );
   delay( 2000 ) ;
   digitalWrite( POWER_GSM, LOW );
   delay( 3000 );
-}
+}*/
 void readGSM( void )
 {
   if ( Serial2.available() ) {
@@ -260,7 +263,7 @@ void setup()
   delay( 1000 );
 
   // Inicializacia GSM modulu
-  zapniGSM();
+  gsmGA.zapniGSM();
   Serial2.begin( 19200 ); // inicializacia serioveho vystupu
   Serial2.println( "AT" );
   delay( 100 );
